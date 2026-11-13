@@ -101,7 +101,7 @@ export declare const contactWireSchema: z.ZodObject<{
 }, z.core.$strip>;
 export type SubscribeWire = z.output<typeof subscribeWireSchema>;
 export type ContactWire = z.output<typeof contactWireSchema>;
-export type ErrorCode = "invalid" | "rate_limited" | "disabled" | "unavailable" | "unauthorised" | "email_failed" | "error";
+export type ErrorCode = "invalid" | "rate_limited" | "feature_disabled" | "unavailable" | "unauthorised" | "email_failed" | "error";
 export type FieldErrors = Partial<Record<"email" | "name" | "phone" | "message" | "website", string>>;
 export type FormResult<T extends object = object> = ({
     ok: true;
@@ -119,7 +119,7 @@ export type SubscribeResult = FormResult<{
 export type ContactResult = FormResult<{
     id: string;
 }>;
-export type MessageKey = "subscribe_pending" | "subscribe_done" | "contact_sent" | "invalid" | "invalid_email" | "name_required" | "contact_required" | "message_required" | "invalid_phone" | "rate_limited" | "disabled" | "unavailable" | "unauthorised" | "email_failed" | "error";
+export type MessageKey = "subscribe_pending" | "subscribe_done" | "contact_sent" | "invalid" | "invalid_email" | "name_required" | "contact_required" | "message_required" | "invalid_phone" | "rate_limited" | "feature_disabled" | "unavailable" | "unauthorised" | "email_failed" | "error";
 export declare const MESSAGES: Record<Locale, Record<MessageKey, string>>;
 export declare const message: (locale: Locale | undefined, key: MessageKey) => string;
 /** Maps zod issues to one message key per field. Unknown issue text falls back to "invalid". */

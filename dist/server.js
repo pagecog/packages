@@ -62,7 +62,7 @@ function refererPath(request, host) {
         return undefined;
     }
 }
-const CODES = ["invalid", "rate_limited", "disabled", "unavailable", "unauthorised", "email_failed", "error"];
+const CODES = ["invalid", "rate_limited", "feature_disabled", "unavailable", "unauthorised", "email_failed", "error"];
 async function call(path, request, env, body, locale) {
     const fail = (code) => ({ ok: false, code, message: message(locale, code) });
     try {

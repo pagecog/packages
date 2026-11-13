@@ -78,7 +78,7 @@ function refererPath(request: Request, host: string): string | undefined {
 
 type Json = { ok?: unknown; message?: unknown; code?: unknown; status?: unknown; id?: unknown; fields?: unknown }
 
-const CODES: ErrorCode[] = ["invalid", "rate_limited", "disabled", "unavailable", "unauthorised", "email_failed", "error"]
+const CODES: ErrorCode[] = ["invalid", "rate_limited", "feature_disabled", "unavailable", "unauthorised", "email_failed", "error"]
 
 async function call(
   path: string,

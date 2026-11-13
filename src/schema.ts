@@ -103,7 +103,7 @@ export type ContactWire = z.output<typeof contactWireSchema>
 export type ErrorCode =
   | "invalid"
   | "rate_limited"
-  | "disabled"
+  | "feature_disabled"
   | "unavailable"
   | "unauthorised"
   | "email_failed"
@@ -130,7 +130,7 @@ export type MessageKey =
   | "message_required"
   | "invalid_phone"
   | "rate_limited"
-  | "disabled"
+  | "feature_disabled"
   | "unavailable"
   | "unauthorised"
   | "email_failed"
@@ -148,7 +148,7 @@ export const MESSAGES: Record<Locale, Record<MessageKey, string>> = {
     message_required: "Please write a message.",
     invalid_phone: "Please enter a valid phone number.",
     rate_limited: "Too many attempts. Please try again in a minute.",
-    disabled: "This form is not available right now.",
+    feature_disabled: "This form is not available right now.",
     unavailable: "We could not send that just now. Please try again shortly.",
     unauthorised: "This form is not available right now.",
     email_failed: "We could not send the email just now. Please try again shortly.",
@@ -165,7 +165,7 @@ export const MESSAGES: Record<Locale, Record<MessageKey, string>> = {
     message_required: "Напишите поруку.",
     invalid_phone: "Унесите исправан број телефона.",
     rate_limited: "Превише покушаја. Покушајте поново за минут.",
-    disabled: "Овај образац тренутно није доступан.",
+    feature_disabled: "Овај образац тренутно није доступан.",
     unavailable: "Тренутно нисмо могли да пошаљемо. Покушајте поново ускоро.",
     unauthorised: "Овај образац тренутно није доступан.",
     email_failed: "Тренутно нисмо могли да пошаљемо е-пошту. Покушајте поново ускоро.",

@@ -74,6 +74,6 @@ test("contact: validates, posts, returns id", async () => {
 })
 
 test("a 4xx with a code and message passes through", async () => {
-  mock(() => json({ ok: false, code: "disabled", message: "Off" }, 403))
-  expect(await pagecogSubscribe(req(), env, { email: "jo@example.com" })).toEqual({ ok: false, code: "disabled", message: "Off" })
+  mock(() => json({ ok: false, code: "feature_disabled", message: "Off" }, 403))
+  expect(await pagecogSubscribe(req(), env, { email: "jo@example.com" })).toEqual({ ok: false, code: "feature_disabled", message: "Off" })
 })
