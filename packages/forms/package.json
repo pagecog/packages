@@ -1,0 +1,47 @@
+{
+  "name": "@pagecog/forms",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "description": "Pagecog Forms: shared schema, server client and React components for the Pagecog Forms API",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "exports": {
+    "./schema": {
+      "types": "./dist/schema.d.ts",
+      "default": "./dist/schema.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "typecheck": "tsgo --noEmit",
+    "test": "bun test src/schema.test.ts src/server.test.ts src/react.test.tsx"
+  },
+  "dependencies": {
+    "zod": "^4.3.5"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.3",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@typescript/native-preview": "latest",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "typescript": "^5.9.0"
+  }
+}

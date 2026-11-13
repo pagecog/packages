@@ -1,0 +1,15 @@
+/* Optional defaults. Override with the --pc-form-* custom properties or your own classNames. */
+.pcf-form { display: grid; gap: var(--pc-form-gap, 1rem); max-width: var(--pc-form-max-width, 32rem); font: inherit; color: var(--pc-form-text, inherit); }
+.pcf-field { display: grid; gap: 0.35rem; }
+.pcf-label { font-weight: 600; font-size: 0.9375rem; }
+.pcf-input { font: inherit; color: inherit; background: var(--pc-form-input-bg, #fff); border: 1px solid var(--pc-form-border, #8a8a8a); border-radius: var(--pc-form-radius, 0.5rem); padding: 0.65rem 0.8rem; min-height: 2.75rem; width: 100%; box-sizing: border-box; }
+.pcf-input:focus-visible, .pcf-button:focus-visible { outline: 3px solid var(--pc-form-focus, var(--pc-form-accent, #1a56db)); outline-offset: 2px; }
+.pcf-input[aria-invalid="true"] { border-color: var(--pc-form-error, #b42318); }
+.pcf-textarea { resize: vertical; min-height: 7rem; }
+.pcf-hint { margin: 0; font-size: 0.875rem; color: var(--pc-form-muted, #5f5f5f); }
+.pcf-error { margin: 0; font-size: 0.875rem; color: var(--pc-form-error, #b42318); }
+.pcf-button { font: inherit; font-weight: 600; cursor: pointer; border: 0; border-radius: var(--pc-form-radius, 0.5rem); padding: 0.75rem 1.25rem; min-height: 2.75rem; background: var(--pc-form-accent, #1a56db); color: var(--pc-form-accent-text, #fff); justify-self: start; }
+.pcf-button:disabled { opacity: 0.6; cursor: progress; }
+.pcf-status { min-height: 1.25em; }
+.pcf-status[data-state="error"] { color: var(--pc-form-error, #b42318); }
+.pcf-success { color: var(--pc-form-success, #0b6b3a); font-weight: 600; }
