@@ -1,12 +1,14 @@
 # @pagecog/forms
 
-Shared schema, server client and React components for the Pagecog Forms API (`api.pagecog.com.au`): subscribe (double opt-in) and contact.
+Shared schema, server client and React components for the Pagecog Forms API (`api.pagecog.com`): subscribe (double opt-in) and contact.
 
-Install (pinned by tag, `dist/` is committed so no build runs on install):
+Install (see the repo README; tarball from the GitHub release):
 
 ```json
-"@pagecog/forms": "github:Pagecog/forms#v0.1.0"
+"@pagecog/forms": "https://github.com/Pagecog/packages/releases/download/forms%400.1.0/pagecog-forms-0.1.0.tgz"
 ```
+
+Set `COLLECTOR_KEY` (the site's key) in the server env. `PAGECOG_API_URL` overrides the default `https://api.pagecog.com`.
 
 ```ts
 // site server function (framework side is yours)
@@ -24,5 +26,4 @@ import "@pagecog/forms/styles.css" // optional; set --pc-form-accent etc.
 - `/server`: `pagecogSubscribe`, `pagecogContact`. POSTs with `x-pc-key`, forwards the platform IP and `pc_v`/`pc_s` cookies, 5 s timeout.
 - `/react`: `SubscribeForm`, `ContactForm`. Labels, `aria-live` status, honeypot, minimum fill time, `strings` + `classNames` props.
 
-After changing `src/`: `bun run build`, commit `dist/`, tag a NEW version (never move a tag).
-Tests: `bun test src/schema.test.ts src/server.test.ts src/react.test.tsx`.
+Tests: `bun test src/schema.test.ts src/server.test.ts src/react.test.tsx`. Releases: see the root README.

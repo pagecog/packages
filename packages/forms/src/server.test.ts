@@ -28,7 +28,7 @@ test("subscribe: posts key, host, cookies, page; returns the API message", async
   const r = await pagecogSubscribe(req(), env, { email: "Jo@Example.com", t: 5000 })
   expect(r).toEqual({ ok: true, status: "pending", message: "Check your email" })
   const h = calls[0].init.headers as Record<string, string>
-  expect(calls[0].url).toBe("https://api.pagecog.com.au/v1/subscribe")
+  expect(calls[0].url).toBe("https://api.pagecog.com/v1/subscribe")
   expect(h["x-pc-key"]).toBe(env.COLLECTOR_KEY)
   expect(h["x-pc-host"]).toBe("www.church.example")
   const body = JSON.parse(calls[0].init.body as string)

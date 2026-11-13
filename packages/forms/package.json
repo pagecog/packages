@@ -1,12 +1,11 @@
 {
   "name": "@pagecog/forms",
-  "version": "0.1.1",
-  "private": true,
+  "version": "0.1.0",
   "type": "module",
   "description": "Pagecog Forms: shared schema, server client and React components for the Pagecog Forms API",
   "files": [
     "dist",
-    "src"
+    "src/styles.css"
   ],
   "exports": {
     "./schema": {
@@ -43,5 +42,14 @@
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "typescript": "^5.9.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pagecog/packages.git",
+    "directory": "packages/forms"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

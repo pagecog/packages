@@ -20,7 +20,7 @@ import {
   type SubscribeResult,
 } from "./schema"
 
-export const API_URL = "https://api.pagecog.com.au"
+export const API_URL = "https://api.pagecog.com"
 const TIMEOUT_MS = 5000
 const ID_RE = /^[a-f0-9]{16,64}$/
 

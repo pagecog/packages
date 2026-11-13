@@ -1,0 +1,41 @@
+name: release
+on:
+  push:
+    tags: ["*@*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - name: Resolve package from tag
+        id: pkg
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          name="${tag%@*}"; version="${tag#*@}"
+          dir="packages/${name}"
+          test -f "${dir}/package.json" || { echo "no package ${name}"; exit 1; }
+          actual=$(bun -e "console.log(require('./${dir}/package.json').version)")
+          [ "${actual}" = "${version}" ] || { echo "tag ${version} != package.json ${actual}"; exit 1; }
+          echo "dir=${dir}" >> "$GITHUB_OUTPUT"; echo "name=${name}" >> "$GITHUB_OUTPUT"; echo "version=${version}" >> "$GITHUB_OUTPUT"
+      - run: bun install --frozen-lockfile
+      - name: Build and test
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: bun run build && bun run test
+      - name: Pack
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: bun pm pack
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" ${{ steps.pkg.outputs.dir }}/*.tgz --title "${GITHUB_REF_NAME}" --notes "@pagecog/${{ steps.pkg.outputs.name }} ${{ steps.pkg.outputs.version }}"
+      - name: npm publish (only when NPM_TOKEN exists)
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        working-directory: ${{ steps.pkg.outputs.dir }}
+        run: |
+          if [ -z "${NPM_TOKEN}" ]; then echo "NPM_TOKEN not set, skipping npm publish"; exit 0; fi
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+          npm publish --access public

@@ -1,5 +1,5 @@
 /**
- * Shared contract between the Pagecog Forms API (api.pagecog.com.au) and the site kit.
+ * Shared contract between the Pagecog Forms API (api.pagecog.com) and the site kit.
  * zod schemas, wire types, localised messages. No I/O, no framework imports.
  */
 import { z } from "zod"
