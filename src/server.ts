@@ -32,11 +32,31 @@ function envOf(env: unknown): FormsEnv {
   return { COLLECTOR_KEY: e.COLLECTOR_KEY ?? p?.COLLECTOR_KEY, PAGECOG_API_URL: e.PAGECOG_API_URL ?? p?.PAGECOG_API_URL }
 }
 
-/** Platform client ip for the API's rate limits only (never stored). Inbound x-pc-* is never read. */
-function platformIp(request: Request): string {
-  if ((request as { cf?: unknown }).cf) return request.headers.get("cf-connecting-ip") ?? ""
-  if (typeof process !== "undefined" && process.env?.VERCEL) return request.headers.get("x-real-ip") ?? ""
-  return ""
+/** Platform info for the API's rate limits and analytics only (ip is never stored). Inbound x-pc-* is never read. */
+function platformInfo(request: Request): { ip: string; country: string; region: string; city: string; bot: string } {
+  const out = { ip: "", country: "", region: "", city: "", bot: "" }
+  const cf = (request as { cf?: Record<string, unknown> }).cf
+  if (cf && typeof cf === "object") {
+    out.ip = request.headers.get("cf-connecting-ip") ?? ""
+    out.country = String(cf.country ?? "")
+    out.region = String(cf.regionCode ?? "")
+    out.city = String(cf.city ?? "")
+    const score = (cf.botManagement as { score?: number } | undefined)?.score
+    if (typeof score === "number") out.bot = String(score)
+    return out
+  }
+  if (typeof process !== "undefined" && process.env?.VERCEL) {
+    const h = request.headers
+    out.ip = h.get("x-real-ip") ?? ""
+    out.country = h.get("x-vercel-ip-country") ?? ""
+    out.region = h.get("x-vercel-ip-country-region") ?? ""
+    try {
+      out.city = decodeURIComponent(h.get("x-vercel-ip-city") ?? "")
+    } catch {
+      // keep empty
+    }
+  }
+  return out
 }
 
 function cookie(request: Request, name: string): string | undefined {
@@ -82,15 +102,22 @@ async function call(
       v: cookie(request, "pc_v"),
       s: cookie(request, "pc_s"),
     }
+    const g = platformInfo(request)
+    const headers: Record<string, string> = {
+      "x-pc-key": e.COLLECTOR_KEY,
+      "x-pc-host": host,
+      "x-pc-ip": g.ip,
+      "x-pc-ua": (request.headers.get("user-agent") ?? "").slice(0, 300),
+      "x-pc-country": g.country,
+      "x-pc-region": g.region,
+      "x-pc-city": g.city,
+      "content-type": "application/json",
+    }
+    if (g.bot) headers["x-pc-bot"] = g.bot
+    if (/(?:^|; )pc_internal=1(?:;|$)/.test(request.headers.get("cookie") ?? "")) headers["x-pc-internal"] = "1"
     const res = await fetch(`${e.PAGECOG_API_URL ?? API_URL}${path}`, {
       method: "POST",
-      headers: {
-        "x-pc-key": e.COLLECTOR_KEY,
-        "x-pc-host": host,
-        "x-pc-ip": platformIp(request),
-        "x-pc-ua": (request.headers.get("user-agent") ?? "").slice(0, 300),
-        "content-type": "application/json",
-      },
+      headers,
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
