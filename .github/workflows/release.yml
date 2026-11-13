@@ -2,19 +2,26 @@ name: release
 on:
   push:
     tags: ["*@*"]
-permissions:
-  contents: write
+permissions: {}
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      name: ${{ steps.pkg.outputs.name }}
+      version: ${{ steps.pkg.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
       - name: Resolve package from tag
         id: pkg
         run: |
           tag="${GITHUB_REF_NAME}"
           name="${tag%@*}"; version="${tag#*@}"
+          case "${name}" in *[!a-z0-9-]*|"") echo "bad package name"; exit 1;; esac
           dir="packages/${name}"
           test -f "${dir}/package.json" || { echo "no package ${name}"; exit 1; }
           actual=$(bun -e "console.log(require('./${dir}/package.json').version)")
@@ -30,12 +37,28 @@ jobs:
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${GITHUB_REF_NAME}" ${{ steps.pkg.outputs.dir }}/*.tgz --title "${GITHUB_REF_NAME}" --notes "@pagecog/${{ steps.pkg.outputs.name }} ${{ steps.pkg.outputs.version }}"
+          DIR: ${{ steps.pkg.outputs.dir }}
+          NAME: ${{ steps.pkg.outputs.name }}
+          VERSION: ${{ steps.pkg.outputs.version }}
+        run: gh release create "${GITHUB_REF_NAME}" "${DIR}"/*.tgz --title "${GITHUB_REF_NAME}" --notes "@pagecog/${NAME} ${VERSION}"
+  # Separate job: only this job (and only its last step) ever sees NPM_TOKEN. It publishes the exact tarball
+  # attached to the release, never anything rebuilt. Skipped quietly when the secret does not exist.
+  npm:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download the released tarball
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release download "${GITHUB_REF_NAME}" --pattern '*.tgz' --dir dist-tgz
       - name: npm publish (only when NPM_TOKEN exists)
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        working-directory: ${{ steps.pkg.outputs.dir }}
         run: |
           if [ -z "${NPM_TOKEN}" ]; then echo "NPM_TOKEN not set, skipping npm publish"; exit 0; fi
-          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
-          npm publish --access public
+          echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > "${RUNNER_TEMP}/npmrc"
+          NPM_CONFIG_USERCONFIG="${RUNNER_TEMP}/npmrc" npm publish dist-tgz/*.tgz --access public --provenance
