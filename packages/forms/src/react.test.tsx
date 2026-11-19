@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { renderToStaticMarkup } from "react-dom/server"
-import { ContactForm, SubscribeForm } from "./react"
+import { collectFields, ContactForm, SubscribeForm } from "./react"
 
 const noop = async () => ({ ok: true as const, status: "pending" as const, message: "ok" })
 
@@ -36,4 +36,30 @@ test("contact: name, email, phone, message; website only when enabled", () => {
   expect(off).not.toContain('name="website"')
   const on = renderToStaticMarkup(<ContactForm website onSubmit={async () => ({ ok: true as const, id: "x", message: "ok" })} />)
   expect(on).toContain('name="website"')
+})
+
+test("contact: fields prop and children render; no extra inputs by default", () => {
+  const ok = async () => ({ ok: true as const, id: "x", message: "ok" })
+  const plain = renderToStaticMarkup(<ContactForm onSubmit={ok} />)
+  expect(plain).not.toContain("fields.")
+  const html = renderToStaticMarkup(
+    <ContactForm onSubmit={ok} fields={{ plan: "pro" }}>
+      <input name="fields.domain" />
+    </ContactForm>,
+  )
+  expect(html).toContain('name="fields.domain"')
+})
+
+test("collectFields: static only, inputs override, repeats become arrays, blanks dropped", () => {
+  expect(collectFields(new FormData())).toBeUndefined()
+  expect(collectFields(new FormData(), {})).toBeUndefined()
+  expect(collectFields(new FormData(), { plan: "pro" })).toEqual({ plan: "pro" })
+  const fd = new FormData()
+  fd.append("name", "ignored")
+  fd.append("fields.domain", "a.example")
+  fd.append("fields.plan", "team")
+  fd.append("fields.needs", "site")
+  fd.append("fields.needs", "seo")
+  fd.append("fields.empty", "  ")
+  expect(collectFields(fd, { plan: "pro", empty: "x", keep: 1 })).toEqual({ plan: "team", domain: "a.example", needs: ["site", "seo"], keep: 1 })
 })

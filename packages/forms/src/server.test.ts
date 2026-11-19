@@ -77,3 +77,16 @@ test("a 4xx with a code and message passes through", async () => {
   mock(() => json({ ok: false, code: "feature_disabled", message: "Off" }, 403))
   expect(await pagecogSubscribe(req(), env, { email: "jo@example.com" })).toEqual({ ok: false, code: "feature_disabled", message: "Off" })
 })
+
+test("contact: fields are validated and passed through; absent fields add no key", async () => {
+  const calls = mock(() => json({ ok: true, id: "abc" }))
+  const input = { name: "Jo Citizen", email: "jo@example.com", message: "Hi", t: 5000 }
+  expect(await pagecogContact(req(), env, input)).toMatchObject({ ok: true })
+  expect("fields" in JSON.parse(calls[0].init.body as string)).toBe(false)
+  const fields = { business: "Acme", needs: ["site", "seo"], budget: 5000, urgent: false }
+  expect(await pagecogContact(req(), env, { ...input, fields })).toMatchObject({ ok: true })
+  expect(JSON.parse(calls[1].init.body as string).fields).toEqual(fields)
+  const bad = await pagecogContact(req(), env, { ...input, fields: { dup_of: "x" } })
+  expect(bad).toMatchObject({ ok: false, code: "invalid" })
+  expect(calls.length).toBe(2)
+})

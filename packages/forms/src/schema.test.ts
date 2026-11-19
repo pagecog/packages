@@ -42,3 +42,45 @@ test("fieldErrors are localised", () => {
   expect(fieldErrors(r.error, "sr").email).toBe(message("sr", "contact_required"))
   expect(fieldErrors(r.error).email).toBe(message("en", "contact_required"))
 })
+
+const base = { name: "Jo Citizen", email: "jo@example.com", message: "Hi" }
+const withFields = (fields: unknown) => contactSchema.safeParse({ ...base, fields })
+
+test("fields: absent or empty leaves the payload unchanged", () => {
+  const a = contactSchema.safeParse(base)
+  expect(a.success && "fields" in a.data && a.data.fields !== undefined).toBe(false)
+  const b = withFields({})
+  expect(b.success && b.data.fields).toBeUndefined()
+})
+
+test("fields: accepts string, number, boolean, string[]", () => {
+  const r = withFields({ business: " Acme ", budget: 5000, urgent: true, needs: ["site", "seo"], domain_name: "a.example" })
+  expect(r.success).toBe(true)
+  if (r.success) expect(r.data.fields).toEqual({ business: "Acme", budget: 5000, urgent: true, needs: ["site", "seo"], domain_name: "a.example" })
+})
+
+test("fields: rejects bad keys, reserved keys, too many keys", () => {
+  for (const k of ["Upper", "1abc", "has-dash", "dup_of", "backfill", "a b", ""]) expect(withFields({ [k]: "x" }).success).toBe(false)
+  const twelve = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [`k${i}`, "x"]))
+  expect(withFields(twelve).success).toBe(true)
+  expect(withFields({ ...twelve, k12: "x" }).success).toBe(false)
+})
+
+test("fields: rejects bad values and over-long strings or arrays", () => {
+  expect(withFields({ a: "x".repeat(200) }).success).toBe(true)
+  expect(withFields({ a: "x".repeat(201) }).success).toBe(false)
+  expect(withFields({ a: Array.from({ length: 20 }, () => "x") }).success).toBe(true)
+  expect(withFields({ a: Array.from({ length: 21 }, () => "x") }).success).toBe(false)
+  expect(withFields({ a: ["x".repeat(201)] }).success).toBe(false)
+  for (const v of [null, undefined, {}, [1], Number.NaN, Number.POSITIVE_INFINITY]) expect(withFields({ a: v }).success).toBe(false)
+  expect(withFields("nope").success).toBe(false)
+  expect(withFields(["a"]).success).toBe(false)
+})
+
+test("fields: error message is localised", () => {
+  const r = withFields({ Bad: "x" })
+  if (r.success) throw new Error("expected failure")
+  expect(fieldErrors(r.error, "en").fields).toBe(message("en", "invalid_fields"))
+  expect(fieldErrors(r.error, "sr").fields).toBe(message("sr", "invalid_fields"))
+  expect(message("sr", "invalid_fields")).not.toBe(message("en", "invalid_fields"))
+})
