@@ -15,7 +15,22 @@ export function normaliseLocale(v: unknown): Locale | undefined {
   return (LOCALES as readonly string[]).includes(base) ? (base as Locale) : undefined
 }
 
-export const LIMITS = { name: 120, email: 254, phone: 40, message: 8000, website: 200, source: 40, page: 200 } as const
+export const LIMITS = {
+  name: 120,
+  email: 254,
+  phone: 40,
+  message: 8000,
+  website: 200,
+  source: 40,
+  page: 200,
+  /** Extra structured fields on a contact submission. */
+  fieldCount: 12,
+  fieldValue: 200,
+  fieldItems: 20,
+} as const
+/** Keys the server reserves for itself; never accepted in `fields`. */
+export const RESERVED_FIELD_KEYS = ["dup_of", "backfill"] as const
+const FIELD_KEY_RE = /^[a-z][a-z0-9_]*$/
 /** Submissions faster than this after the form rendered are treated as bots (ms). */
 export const MIN_FILL_MS = 1500
 
@@ -42,6 +57,28 @@ const phone = z.preprocess(
     .trim()
     .max(LIMITS.phone)
     .refine((s) => /^[0-9+()\-.\s]+$/.test(s) && (s.match(/\d/g)?.length ?? 0) >= 6, "invalid_phone")
+    .optional(),
+)
+
+/** One value of a structured field: string (<= 200), finite number, boolean, or up to 20 strings. */
+export type FieldValue = string | number | boolean | string[]
+export type ContactFields = Record<string, FieldValue>
+const fieldString = z.string().trim().max(LIMITS.fieldValue)
+const fieldValue = z.union([fieldString, z.number().finite(), z.boolean(), z.array(fieldString).max(LIMITS.fieldItems)])
+/** Optional extras sent with a lead. An empty object counts as absent. */
+const fields = z.preprocess(
+  (v) => (v !== null && typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0 ? undefined : v),
+  z
+    .record(z.string(), fieldValue)
+    .superRefine((o, ctx) => {
+      const keys = Object.keys(o)
+      if (
+        keys.length > LIMITS.fieldCount ||
+        keys.some((k) => !FIELD_KEY_RE.test(k) || (RESERVED_FIELD_KEYS as readonly string[]).includes(k))
+      ) {
+        ctx.addIssue({ code: "custom", message: "invalid_fields" })
+      }
+    })
     .optional(),
 )
 const locale = z.preprocess((v) => normaliseLocale(v), z.enum(LOCALES).optional())
@@ -77,6 +114,7 @@ export const contactSchema = z
     phone,
     message: z.preprocess(blank, z.string().trim().min(1, "message_required").max(LIMITS.message)),
     website: text(LIMITS.website),
+    fields,
     locale,
     ...guard,
   })
@@ -87,6 +125,8 @@ export type ContactInput = {
   phone?: string
   message: string
   website?: string
+  /** Optional extra structured info (up to 12 keys, lowercase `[a-z][a-z0-9_]*`). */
+  fields?: ContactFields
   locale?: string
   hp?: string
   t?: number
@@ -109,7 +149,7 @@ export type ErrorCode =
   | "email_failed"
   | "error"
 
-export type FieldErrors = Partial<Record<"email" | "name" | "phone" | "message" | "website", string>>
+export type FieldErrors = Partial<Record<"email" | "name" | "phone" | "message" | "website" | "fields", string>>
 
 export type FormResult<T extends object = object> =
   | ({ ok: true; message: string } & T)
@@ -129,6 +169,7 @@ export type MessageKey =
   | "contact_required"
   | "message_required"
   | "invalid_phone"
+  | "invalid_fields"
   | "rate_limited"
   | "feature_disabled"
   | "unavailable"
@@ -147,6 +188,7 @@ export const MESSAGES: Record<Locale, Record<MessageKey, string>> = {
     contact_required: "Please give an email address or a phone number.",
     message_required: "Please write a message.",
     invalid_phone: "Please enter a valid phone number.",
+    invalid_fields: "Some of the extra details are not valid. Please check them and try again.",
     rate_limited: "Too many attempts. Please try again in a minute.",
     feature_disabled: "This form is not available right now.",
     unavailable: "We could not send that just now. Please try again shortly.",
@@ -164,6 +206,7 @@ export const MESSAGES: Record<Locale, Record<MessageKey, string>> = {
     contact_required: "Унесите адресу е-поште или број телефона.",
     message_required: "Напишите поруку.",
     invalid_phone: "Унесите исправан број телефона.",
+    invalid_fields: "Нека од додатних информација нису исправна. Проверите их и покушајте поново.",
     rate_limited: "Превише покушаја. Покушајте поново за минут.",
     feature_disabled: "Овај образац тренутно није доступан.",
     unavailable: "Тренутно нисмо могли да пошаљемо. Покушајте поново ускоро.",
@@ -180,7 +223,7 @@ export function fieldErrors(error: z.ZodError, locale?: Locale): FieldErrors {
   const out: FieldErrors = {}
   for (const i of error.issues) {
     const f = String(i.path[0] ?? "")
-    if (!["email", "name", "phone", "message", "website"].includes(f) || out[f as keyof FieldErrors]) continue
+    if (!["email", "name", "phone", "message", "website", "fields"].includes(f) || out[f as keyof FieldErrors]) continue
     const key = (i.message in MESSAGES.en ? i.message : f === "email" ? "invalid_email" : "invalid") as MessageKey
     out[f as keyof FieldErrors] = message(locale, key)
   }

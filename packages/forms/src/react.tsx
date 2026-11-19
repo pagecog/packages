@@ -15,6 +15,7 @@ import {
   message,
   normaliseLocale,
   subscribeSchema,
+  type ContactFields,
   type ContactInput,
   type ContactResult,
   type FieldErrors,
@@ -180,6 +181,32 @@ function Status({ phase, cn }: { phase: Phase; cn: Required<ClassNames> }) {
   )
 }
 
+/** Prefix for extra inputs: `<input name="fields.domain">` becomes `fields.domain`. Repeated names make a string[]. */
+export const FIELD_INPUT_PREFIX = "fields."
+
+/**
+ * Merges static `fields` with extra inputs named `fields.<key>`. Inputs win. Blank strings are dropped.
+ * Returns undefined when nothing remains, so a form without extras sends the same payload as before.
+ */
+export function collectFields(fd: FormData, base?: ContactFields): ContactFields | undefined {
+  const out: ContactFields = { ...base }
+  const seen = new Set<string>()
+  const names: string[] = []
+  fd.forEach((_, name) => {
+    if (name.startsWith(FIELD_INPUT_PREFIX) && !seen.has(name)) {
+      seen.add(name)
+      names.push(name)
+    }
+  })
+  for (const name of names) {
+    const key = name.slice(FIELD_INPUT_PREFIX.length)
+    const vals = fd.getAll(name).filter((v): v is string => typeof v === "string" && v.trim() !== "")
+    if (vals.length === 0) delete out[key]
+    else out[key] = vals.length === 1 ? vals[0] : vals
+  }
+  return Object.keys(out).length ? out : undefined
+}
+
 type CommonProps<I, R> = {
   onSubmit: (input: I) => Promise<R>
   /** "en" (default) or "sr" (Serbian, Cyrillic). */
@@ -253,6 +280,13 @@ export type ContactFormProps = CommonProps<ContactInput, ContactResult> & {
   strings?: Partial<ContactStrings>
   /** Show the optional website field. Only where the tenant has it enabled in its form config. */
   website?: boolean
+  /**
+   * Extra structured info sent with the lead, merged with any inputs you pass as `children` named
+   * `name="fields.<key>"`. Optional. Client lead forms stay at three inputs unless the site owner asks otherwise.
+   */
+  fields?: ContactFields
+  /** Extra inputs rendered after the message field, e.g. `<input name="fields.domain" />`. */
+  children?: ReactNode
 }
 
 export function ContactForm(props: ContactFormProps) {
@@ -281,6 +315,7 @@ export function ContactForm(props: ContactFormProps) {
           phone: String(fd.get("phone") ?? ""),
           message: String(fd.get("message") ?? ""),
           website: props.website ? String(fd.get("website") ?? "") : undefined,
+          fields: collectFields(fd, props.fields),
           page: props.page,
           locale,
         }))
@@ -305,6 +340,8 @@ export function ContactForm(props: ContactFormProps) {
               {(a) => <input {...a} name="website" type="text" inputMode="url" autoComplete="url" maxLength={200} className={cn.input} />}
             </Field>
           ) : null}
+          {props.children}
+          {f.errors.fields ? <p className={cn.error}>{f.errors.fields}</p> : null}
           <Honeypot id={`${uid}-hp`} />
           <button type="submit" className={cn.button} disabled={f.phase.kind === "sending"}>
             {f.phase.kind === "sending" ? s.submitting : s.submit}
