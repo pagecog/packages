@@ -141,7 +141,7 @@ async function call(
   }
 }
 
-/** Subscribe an email (double opt-in by default). `input` is the browser's fields. */
+/** Subscribe a name plus an email or a phone, at least one (email is double opt-in). `input` is the browser's fields. */
 export async function pagecogSubscribe(request: Request, env: unknown, input: unknown): Promise<SubscribeResult> {
   const raw = (input ?? {}) as Record<string, unknown>
   const locale = normaliseLocale(raw.locale)
@@ -149,7 +149,7 @@ export async function pagecogSubscribe(request: Request, env: unknown, input: un
     const parsed = subscribeSchema.safeParse(input)
     if (!parsed.success) {
       const fields = fieldErrors(parsed.error, locale)
-      return { ok: false, code: "invalid", message: fields.email ?? message(locale, "invalid"), fields }
+      return { ok: false, code: "invalid", message: Object.values(fields)[0] ?? message(locale, "invalid"), fields }
     }
     const r = await call("/v1/subscribe", request, env, parsed.data, parsed.data.locale)
     if (!r.ok) return r

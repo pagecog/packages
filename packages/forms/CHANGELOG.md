@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+
+- Subscribers take a name plus an email or a phone, at least one (`contact_required` when neither). Backward compatible: email-only input is still valid, and the wire payload for it is unchanged.
+- `subscribeSchema` and `subscribeWireSchema` accept optional `email` and `phone`. New `subscribeFormSchema` is the same with the name required (2 to 120 characters).
+- `SubscribeInput` gains `phone`; `email` is now optional. `pagecogSubscribe` returns the first field error as the message and passes a phone-only result through (`status: "subscribed"`).
+- `SubscribeForm` shows name (required by default; `nameRequired={false}` makes it optional), email and phone with a "one is enough" hint. New strings `phoneLabel` and `contactHint` (en, sr). No consent screens.
+
 ## 0.2.0
 
 - Contact submissions accept optional structured `fields`: up to 12 keys (lowercase `[a-z][a-z0-9_]*`, not `dup_of` or `backfill`), values string (max 200), finite number, boolean or string[] (max 20 items).

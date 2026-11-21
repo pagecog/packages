@@ -49,7 +49,6 @@ const emailString = z
   .max(LIMITS.email)
   .refine((s) => EMAIL_RE.test(s), "invalid_email")
 const email = z.preprocess(blank, emailString.optional())
-const requiredEmail = z.preprocess(blank, emailString)
 const phone = z.preprocess(
   blank,
   z
@@ -96,15 +95,37 @@ const ctx = {
   s: z.string().regex(hex).optional(),
 }
 
-export const subscribeSchema = z.object({
-  email: requiredEmail,
+const subscribeShape = {
   name: text(LIMITS.name),
+  email,
+  phone,
   source: text(LIMITS.source),
   locale,
   ...guard,
-})
-/** What the browser sends (before validation). */
-export type SubscribeInput = { email: string; name?: string; source?: string; locale?: string; hp?: string; t?: number; page?: string }
+}
+const needsContact = (d: { email?: string; phone?: string }) => d.email !== undefined || d.phone !== undefined
+const NEEDS_CONTACT = { message: "contact_required", path: ["email"] }
+
+/**
+ * A subscriber is an email or a phone, at least one (name is optional here so email-only callers from
+ * 0.1.x and 0.2.x stay valid). `subscribeFormSchema` is the same with the name required; the
+ * `SubscribeForm` uses it by default, and the API requires a name for new rows.
+ */
+export const subscribeSchema = z.object(subscribeShape).refine(needsContact, NEEDS_CONTACT)
+export const subscribeFormSchema = z
+  .object({ ...subscribeShape, name: z.preprocess(blank, z.string().trim().min(2, "name_required").max(LIMITS.name)) })
+  .refine(needsContact, NEEDS_CONTACT)
+/** What the browser sends (before validation). Email and phone are both optional but one must be present. */
+export type SubscribeInput = {
+  name?: string
+  email?: string
+  phone?: string
+  source?: string
+  locale?: string
+  hp?: string
+  t?: number
+  page?: string
+}
 export type SubscribeData = z.output<typeof subscribeSchema>
 
 export const contactSchema = z
@@ -135,7 +156,7 @@ export type ContactInput = {
 export type ContactData = z.output<typeof contactSchema>
 
 /** What the server kit POSTs: the browser fields plus request context. */
-export const subscribeWireSchema = subscribeSchema.extend(ctx)
+export const subscribeWireSchema = z.object({ ...subscribeShape, ...ctx }).refine(needsContact, NEEDS_CONTACT)
 export const contactWireSchema = contactSchema.extend(ctx)
 export type SubscribeWire = z.output<typeof subscribeWireSchema>
 export type ContactWire = z.output<typeof contactWireSchema>
@@ -155,7 +176,7 @@ export type FormResult<T extends object = object> =
   | ({ ok: true; message: string } & T)
   | { ok: false; code: ErrorCode; message: string; fields?: FieldErrors }
 
-/** pending = confirmation email sent (double opt-in); subscribed = no confirmation needed. */
+/** pending = confirmation email sent (double opt-in, email); subscribed = no confirmation needed (phone only). */
 export type SubscribeResult = FormResult<{ status: "pending" | "subscribed" }>
 export type ContactResult = FormResult<{ id: string }>
 

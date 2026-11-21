@@ -14,6 +14,7 @@ import {
   fieldErrors,
   message,
   normaliseLocale,
+  subscribeFormSchema,
   subscribeSchema,
   type ContactFields,
   type ContactInput,
@@ -29,6 +30,8 @@ export type ClassNames = Partial<Record<Slots, string>>
 
 export type SubscribeStrings = {
   emailLabel: string
+  phoneLabel: string
+  contactHint: string
   nameLabel: string
   optional: string
   submit: string
@@ -47,8 +50,24 @@ export type ContactStrings = {
 }
 
 export const subscribeStrings: Record<Locale, SubscribeStrings> = {
-  en: { emailLabel: "Email address", nameLabel: "Name", optional: "optional", submit: "Subscribe", submitting: "Sending…" },
-  sr: { emailLabel: "Адреса е-поште", nameLabel: "Име", optional: "необавезно", submit: "Претплати се", submitting: "Слање…" },
+  en: {
+    emailLabel: "Email address",
+    phoneLabel: "Phone",
+    contactHint: "Email or phone, one is enough.",
+    nameLabel: "Name",
+    optional: "optional",
+    submit: "Subscribe",
+    submitting: "Sending…",
+  },
+  sr: {
+    emailLabel: "Адреса е-поште",
+    phoneLabel: "Телефон",
+    contactHint: "Е-пошта или телефон, довољно је једно.",
+    nameLabel: "Име",
+    optional: "необавезно",
+    submit: "Претплати се",
+    submitting: "Слање…",
+  },
 }
 export const contactStrings: Record<Locale, ContactStrings> = {
   en: {
@@ -222,8 +241,13 @@ export type SubscribeFormProps = CommonProps<SubscribeInput, SubscribeResult> & 
   source?: string
   /** Override any label; unset keys use the locale preset. */
   strings?: Partial<SubscribeStrings>
-  /** Show the optional name field (default true). */
+  /**
+   * Show the name field (default true). It is required unless `nameRequired` is false. Hiding it sends no name,
+   * which the API rejects for new subscribers, so keep it unless the site's API config says otherwise.
+   */
   showName?: boolean
+  /** Require a name (default true, matching the API). Set false for an optional name field. */
+  nameRequired?: boolean
 }
 
 export function SubscribeForm(props: SubscribeFormProps) {
@@ -231,10 +255,11 @@ export function SubscribeForm(props: SubscribeFormProps) {
   const s = { ...subscribeStrings[locale], ...props.strings }
   const cn = { ...DEFAULTS, ...props.classNames }
   const uid = useId()
+  const nameRequired = props.nameRequired !== false && props.showName !== false
   const f = useFormState<SubscribeInput & Record<string, unknown>, SubscribeResult>(
     locale,
     (i) => {
-      const r = subscribeSchema.safeParse(i)
+      const r = (nameRequired ? subscribeFormSchema : subscribeSchema).safeParse(i)
       return r.success ? null : fieldErrors(r.error, locale)
     },
     (i) => props.onSubmit(i),
@@ -248,6 +273,7 @@ export function SubscribeForm(props: SubscribeFormProps) {
       onSubmit={(e) =>
         f.submit(e, (fd) => ({
           email: String(fd.get("email") ?? ""),
+          phone: String(fd.get("phone") ?? ""),
           name: String(fd.get("name") ?? ""),
           source: props.source,
           page: props.page,
@@ -258,12 +284,22 @@ export function SubscribeForm(props: SubscribeFormProps) {
       {done ? null : (
         <>
           {props.showName === false ? null : (
-            <Field id={`${uid}-name`} label={`${s.nameLabel} (${s.optional})`} error={f.errors.name} cn={cn}>
-              {(a) => <input {...a} name="name" type="text" autoComplete="name" maxLength={120} className={cn.input} />}
+            <Field
+              id={`${uid}-name`}
+              label={nameRequired ? s.nameLabel : `${s.nameLabel} (${s.optional})`}
+              error={f.errors.name}
+              cn={cn}
+            >
+              {(a) => (
+                <input {...a} name="name" type="text" autoComplete="name" required={nameRequired} maxLength={120} className={cn.input} />
+              )}
             </Field>
           )}
-          <Field id={`${uid}-email`} label={s.emailLabel} error={f.errors.email} cn={cn}>
-            {(a) => <input {...a} name="email" type="email" autoComplete="email" inputMode="email" required maxLength={254} className={cn.input} />}
+          <Field id={`${uid}-email`} label={s.emailLabel} hint={s.contactHint} error={f.errors.email} cn={cn}>
+            {(a) => <input {...a} name="email" type="email" autoComplete="email" inputMode="email" maxLength={254} className={cn.input} />}
+          </Field>
+          <Field id={`${uid}-phone`} label={s.phoneLabel} error={f.errors.phone} cn={cn}>
+            {(a) => <input {...a} name="phone" type="tel" autoComplete="tel" inputMode="tel" maxLength={40} className={cn.input} />}
           </Field>
           <Honeypot id={`${uid}-hp`} />
           <button type="submit" className={cn.button} disabled={f.phase.kind === "sending"}>

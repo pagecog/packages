@@ -2,18 +2,39 @@ import { expect, test } from "bun:test"
 import { renderToStaticMarkup } from "react-dom/server"
 import { collectFields, ContactForm, SubscribeForm } from "./react"
 
+/** The full <input ...> tag for a field name (attribute order is not guaranteed). */
+const tag = (html: string, name: string) => html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0] ?? ""
+
 const noop = async () => ({ ok: true as const, status: "pending" as const, message: "ok" })
 
 test("subscribe: labelled inputs, honeypot hidden from AT, live region always present", () => {
   const html = renderToStaticMarkup(<SubscribeForm onSubmit={noop} />)
   expect(html).toContain('type="email"')
+  expect(html).toContain('type="tel"')
   expect(html).toContain("Email address")
+  expect(html).toContain("Email or phone, one is enough.")
   expect(html).toContain('role="status"')
   expect(html).toContain('aria-live="polite"')
   expect(html).toContain('name="hp"')
   expect(html).toContain('aria-hidden="true"')
   expect(html).toContain('tabindex="-1"')
   expect(html).toMatch(/<label for="([^"]+)"[^>]*>Email address<\/label><input id="\1"/)
+})
+
+test("subscribe: name required by default, optional on request, hidden with showName=false", () => {
+  const req = renderToStaticMarkup(<SubscribeForm onSubmit={noop} />)
+  expect(tag(req, "name")).toContain("required")
+  expect(req).not.toContain("optional")
+  const opt = renderToStaticMarkup(<SubscribeForm onSubmit={noop} nameRequired={false} />)
+  expect(opt).toContain("Name (optional)")
+  expect(tag(opt, "name")).not.toContain("required")
+  expect(renderToStaticMarkup(<SubscribeForm onSubmit={noop} showName={false} />)).not.toContain('name="name"')
+})
+
+test("subscribe: email and phone inputs are not individually required", () => {
+  const html = renderToStaticMarkup(<SubscribeForm onSubmit={noop} />)
+  expect(tag(html, "email")).not.toContain("required")
+  expect(tag(html, "phone")).not.toContain("required")
 })
 
 test("subscribe: Serbian Cyrillic preset, lang attribute, strings override", () => {

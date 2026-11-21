@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { contactSchema, fieldErrors, message, normaliseLocale, subscribeSchema } from "./schema"
+import { contactSchema, fieldErrors, message, normaliseLocale, subscribeFormSchema, subscribeSchema, subscribeWireSchema } from "./schema"
 
 test("normaliseLocale", () => {
   expect(normaliseLocale("sr-Cyrl")).toBe("sr")
@@ -13,6 +13,31 @@ test("subscribe: lowercases, trims, blank name is absent", () => {
   expect(r.email).toBe("jo@example.com")
   expect(r.name).toBeUndefined()
   expect(r.locale).toBe("sr")
+})
+
+test("subscribe: phone only is valid, email only is still valid, neither is not", () => {
+  expect(subscribeSchema.safeParse({ name: "Jo", phone: "0412 345 678" }).success).toBe(true)
+  expect(subscribeSchema.safeParse({ phone: "0412 345 678", email: "" }).success).toBe(true)
+  expect(subscribeSchema.safeParse({ email: "jo@example.com" }).success).toBe(true)
+  expect(subscribeSchema.safeParse({ name: "Jo", email: "", phone: " " }).success).toBe(false)
+  expect(subscribeSchema.safeParse({ name: "Jo", phone: "12" }).success).toBe(false)
+  expect(subscribeSchema.safeParse({ name: "Jo", email: "nope", phone: "0412 345 678" }).success).toBe(false)
+})
+
+test("subscribeFormSchema: name required, plus email or phone", () => {
+  expect(subscribeFormSchema.safeParse({ name: "Jo", email: "jo@example.com" }).success).toBe(true)
+  expect(subscribeFormSchema.safeParse({ name: "Jo", phone: "0412 345 678" }).success).toBe(true)
+  expect(subscribeFormSchema.safeParse({ email: "jo@example.com" }).success).toBe(false)
+  expect(subscribeFormSchema.safeParse({ name: "J", email: "jo@example.com" }).success).toBe(false)
+  const r = subscribeFormSchema.safeParse({ name: "Jo" })
+  if (r.success) throw new Error("expected failure")
+  expect(fieldErrors(r.error).email).toBe(message("en", "contact_required"))
+})
+
+test("subscribe wire: keeps tracking ids and the contact rule", () => {
+  const v = "a".repeat(32)
+  expect(subscribeWireSchema.safeParse({ name: "Jo", phone: "0412 345 678", v, s: v }).success).toBe(true)
+  expect(subscribeWireSchema.safeParse({ name: "Jo", v }).success).toBe(false)
 })
 
 test("subscribe: rejects bad and missing email", () => {
