@@ -1,5 +1,6 @@
 /* Optional defaults. Override with the --pc-form-* custom properties or your own classNames. */
 .pcf-form { display: grid; gap: var(--pc-form-gap, 1rem); max-width: var(--pc-form-max-width, 32rem); font: inherit; color: var(--pc-form-text, inherit); }
+.pcf-row, .pcf-fields { display: grid; gap: var(--pc-form-gap, 1rem); }
 .pcf-field { display: grid; gap: 0.35rem; }
 .pcf-label { font-weight: 600; font-size: 0.9375rem; }
 .pcf-input { font: inherit; color: inherit; background: var(--pc-form-input-bg, #fff); border: 1px solid var(--pc-form-border, #8a8a8a); border-radius: var(--pc-form-radius, 0.5rem); padding: 0.65rem 0.8rem; min-height: 2.75rem; width: 100%; box-sizing: border-box; }

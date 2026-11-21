@@ -35,6 +35,22 @@ test("subscribe: posts key, host, cookies, page; returns the API message", async
   expect(body).toMatchObject({ email: "jo@example.com", v: vid, s: vid, page: "/news" })
 })
 
+test("subscribe: phone only posts name and phone, no email", async () => {
+  const calls = mock(() => json({ ok: true, status: "subscribed", message: "Done" }))
+  const r = await pagecogSubscribe(req(), env, { name: "Jo", phone: "0412 345 678", source: "footer" })
+  expect(r).toEqual({ ok: true, status: "subscribed", message: "Done" })
+  const body = JSON.parse(calls[0].init.body as string)
+  expect(body).toMatchObject({ name: "Jo", phone: "0412 345 678", source: "footer", v: vid })
+  expect("email" in body).toBe(false)
+})
+
+test("subscribe: neither email nor phone never calls the API", async () => {
+  const calls = mock(() => json({ ok: true }))
+  const r = await pagecogSubscribe(req(), env, { name: "Jo" })
+  expect(r).toMatchObject({ ok: false, code: "invalid", message: "Please give an email address or a phone number." })
+  expect(calls.length).toBe(0)
+})
+
 test("subscribe: invalid email never calls the API", async () => {
   const calls = mock(() => json({ ok: true }))
   const r = await pagecogSubscribe(req(), env, { email: "x", locale: "sr" })
