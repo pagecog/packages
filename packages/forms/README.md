@@ -28,6 +28,8 @@ import "@pagecog/forms/styles.css" // optional; set --pc-form-accent etc.
 
 ## Subscribers
 
+**Matching a site's own look.** Style every part through `classNames` (`form`, `row`, `fields`, `field`, `label`, `input`, `hint`, `error`, `button`, `status`, `success`); a class you pass replaces the default `pcf-*` class for that slot. For a compact inline layout use `contactField="single"` (one "Email or phone" input), `errorDisplay="status"`, `strings` (`namePlaceholder`, `contactPlaceholder`, `idleNote`, `submit`, `submitting`) and `renderSuccess` / `onSuccess` for a custom thank-you and analytics. Use Tailwind variants on the slots: `aria-invalid:` for an invalid input and `data-[state=error]:` on `status`.
+
 A subscriber is a name plus an email or a phone, at least one. `SubscribeForm` asks for name, email and phone ("one is enough") and validates with `subscribeFormSchema`; `pagecogSubscribe` validates with `subscribeSchema` (name optional, so 0.1.x email-only callers keep working) and the API requires a name for new rows. Email is double opt-in (`status: "pending"`); a phone-only signup is stored as confirmed (`status: "subscribed"`). The site must have Subscribers switched on in the Pagecog dashboard, otherwise the API answers `feature_disabled`.
 
 ## Extra fields on a contact

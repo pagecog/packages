@@ -25,13 +25,34 @@ import {
   type SubscribeResult,
 } from "./schema"
 
-export type Slots = "form" | "field" | "label" | "input" | "textarea" | "hint" | "error" | "button" | "status" | "success"
+export type Slots =
+  | "form"
+  | "row"
+  | "fields"
+  | "field"
+  | "label"
+  | "input"
+  | "textarea"
+  | "hint"
+  | "error"
+  | "button"
+  | "status"
+  | "success"
 export type ClassNames = Partial<Record<Slots, string>>
 
 export type SubscribeStrings = {
   emailLabel: string
   phoneLabel: string
   contactHint: string
+  /** Label of the single field (`contactField="single"`). */
+  contactLabel: string
+  /** Message under the single field when it is empty. Empty uses the schema message. */
+  contactRequired: string
+  /** Placeholders. Empty means none. */
+  namePlaceholder: string
+  contactPlaceholder: string
+  /** Text shown in the status line while idle (for example "No spam."). Empty means nothing. */
+  idleNote: string
   nameLabel: string
   optional: string
   submit: string
@@ -54,6 +75,11 @@ export const subscribeStrings: Record<Locale, SubscribeStrings> = {
     emailLabel: "Email address",
     phoneLabel: "Phone",
     contactHint: "Email or phone, one is enough.",
+    contactLabel: "Email or phone",
+    contactRequired: "",
+    namePlaceholder: "",
+    contactPlaceholder: "",
+    idleNote: "",
     nameLabel: "Name",
     optional: "optional",
     submit: "Subscribe",
@@ -63,6 +89,11 @@ export const subscribeStrings: Record<Locale, SubscribeStrings> = {
     emailLabel: "Адреса е-поште",
     phoneLabel: "Телефон",
     contactHint: "Е-пошта или телефон, довољно је једно.",
+    contactLabel: "Е-пошта или телефон",
+    contactRequired: "",
+    namePlaceholder: "",
+    contactPlaceholder: "",
+    idleNote: "",
     nameLabel: "Име",
     optional: "необавезно",
     submit: "Претплати се",
@@ -97,6 +128,8 @@ export const contactStrings: Record<Locale, ContactStrings> = {
 const cx = (...c: (string | undefined)[]) => c.filter(Boolean).join(" ")
 const DEFAULTS: Required<ClassNames> = {
   form: "pcf-form",
+  row: "pcf-row",
+  fields: "pcf-fields",
   field: "pcf-field",
   label: "pcf-label",
   input: "pcf-input",
@@ -116,6 +149,7 @@ function useFormState<I extends Record<string, unknown>, R extends { ok: boolean
   locale: Locale,
   validate: (i: I) => FieldErrors | null,
   onSubmit: (i: I) => Promise<R>,
+  opts: { statusErrors?: boolean; firstError?: (e: FieldErrors) => string | undefined; onSuccess?: (i: I, r: R) => void } = {},
 ) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" })
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -131,15 +165,22 @@ function useFormState<I extends Record<string, unknown>, R extends { ok: boolean
     const bad = validate(input)
     if (bad) {
       setErrors(bad)
-      setPhase({ kind: "idle" })
+      const first = opts.statusErrors ? (opts.firstError?.(bad) ?? Object.values(bad)[0]) : undefined
+      setPhase(first ? { kind: "error", message: first } : { kind: "idle" })
       return
     }
     setErrors({})
     setPhase({ kind: "sending" })
     try {
       const r = await onSubmit(input)
-      if (r.ok) setPhase({ kind: "ok", message: r.message })
-      else {
+      if (r.ok) {
+        setPhase({ kind: "ok", message: r.message })
+        try {
+          opts.onSuccess?.(input, r)
+        } catch {
+          // A failing site callback must not turn a stored signup into an error message.
+        }
+      } else {
         setErrors(r.fields ?? {})
         setPhase({ kind: "error", message: r.message })
       }
@@ -155,12 +196,16 @@ function Field(p: {
   label: string
   hint?: string
   error?: string
+  /** Mark the field invalid but render the message elsewhere (the status line). */
+  hideError?: boolean
+  /** Extra id for aria-describedby (the status line). */
+  describedBy?: string
   cn: Required<ClassNames>
   children: (a: { id: string; "aria-invalid": boolean; "aria-describedby": string | undefined }) => ReactNode
 }) {
   const hintId = p.hint ? `${p.id}-hint` : undefined
-  const errId = p.error ? `${p.id}-error` : undefined
-  const describedBy = [hintId, errId].filter(Boolean).join(" ") || undefined
+  const errId = p.error && !p.hideError ? `${p.id}-error` : undefined
+  const describedBy = [hintId, errId, p.describedBy].filter(Boolean).join(" ") || undefined
   return (
     <div className={p.cn.field}>
       <label htmlFor={p.id} className={p.cn.label}>
@@ -172,7 +217,7 @@ function Field(p: {
           {p.hint}
         </p>
       ) : null}
-      {p.error ? (
+      {errId ? (
         <p id={errId} className={p.cn.error}>
           {p.error}
         </p>
@@ -190,11 +235,11 @@ function Honeypot({ id }: { id: string }) {
   )
 }
 
-function Status({ phase, cn }: { phase: Phase; cn: Required<ClassNames> }) {
+function Status({ phase, cn, id, idle }: { phase: Phase; cn: Required<ClassNames>; id?: string; idle?: string }) {
   // The live region is always mounted so assistive tech announces later changes.
-  const text = phase.kind === "ok" || phase.kind === "error" ? phase.message : ""
+  const text = phase.kind === "ok" || phase.kind === "error" ? phase.message : (idle ?? "")
   return (
-    <div role="status" aria-live="polite" className={cx(cn.status, phase.kind === "ok" ? cn.success : undefined)} data-state={phase.kind}>
+    <div id={id} role="status" aria-live="polite" className={cx(cn.status, phase.kind === "ok" ? cn.success : undefined)} data-state={phase.kind}>
       {text}
     </div>
   )
@@ -226,6 +271,16 @@ export function collectFields(fd: FormData, base?: ContactFields): ContactFields
   return Object.keys(out).length ? out : undefined
 }
 
+/**
+ * The single "Email or phone" field: a value containing "@" is an email, anything else is a phone number.
+ * Blank gives neither key, so the schema answers `contact_required`.
+ */
+export function splitContact(value: string): { email?: string; phone?: string } {
+  const v = value.trim()
+  if (!v) return {}
+  return v.includes("@") ? { email: v } : { phone: v }
+}
+
 type CommonProps<I, R> = {
   onSubmit: (input: I) => Promise<R>
   /** "en" (default) or "sr" (Serbian, Cyrillic). */
@@ -248,6 +303,23 @@ export type SubscribeFormProps = CommonProps<SubscribeInput, SubscribeResult> & 
   showName?: boolean
   /** Require a name (default true, matching the API). Set false for an optional name field. */
   nameRequired?: boolean
+  /**
+   * "split" (default) shows an email input and a phone input. "single" shows one "Email or phone" input
+   * (`name="contact"`, `strings.contactLabel`): a value with "@" is sent as the email, anything else as the phone.
+   */
+  contactField?: "split" | "single"
+  /**
+   * Where validation messages go. "field" (default) puts each under its input. "status" shows the first one in the
+   * status line (the inputs are still marked `aria-invalid`), for compact inline layouts.
+   */
+  errorDisplay?: "field" | "status"
+  /** Called once after a successful submit (analytics, remember the visitor joined). Errors it throws are ignored. */
+  onSuccess?: (input: SubscribeInput, result: SubscribeResult) => void
+  /**
+   * Replaces the form after a successful submit, given the API message. The status line stays mounted (it is the
+   * live region); give `classNames.success` a value such as "sr-only" to avoid showing the message twice.
+   */
+  renderSuccess?: (message: string) => ReactNode
 }
 
 export function SubscribeForm(props: SubscribeFormProps) {
@@ -256,15 +328,33 @@ export function SubscribeForm(props: SubscribeFormProps) {
   const cn = { ...DEFAULTS, ...props.classNames }
   const uid = useId()
   const nameRequired = props.nameRequired !== false && props.showName !== false
+  const single = props.contactField === "single"
+  const inStatus = props.errorDisplay === "status"
+  const statusId = inStatus || s.idleNote ? `${uid}-status` : undefined
   const f = useFormState<SubscribeInput & Record<string, unknown>, SubscribeResult>(
     locale,
     (i) => {
       const r = (nameRequired ? subscribeFormSchema : subscribeSchema).safeParse(i)
-      return r.success ? null : fieldErrors(r.error, locale)
+      if (r.success) return null
+      const errs = fieldErrors(r.error, locale)
+      // Single field: one place for either problem, with the site's own wording when the field is empty.
+      if (single && (errs.email || errs.phone)) {
+        const empty = !i.email && !i.phone
+        errs.email = empty && s.contactRequired ? s.contactRequired : (errs.email ?? errs.phone)
+        delete errs.phone
+      }
+      return errs
     },
     (i) => props.onSubmit(i),
+    {
+      statusErrors: inStatus,
+      // Name first, then the contact problem, matching the field order.
+      firstError: (e) => e.name ?? e.email ?? e.phone,
+      onSuccess: props.onSuccess,
+    },
   )
   const done = f.phase.kind === "ok"
+  const showErr = !inStatus
   return (
     <form
       className={cx(cn.form, props.className)}
@@ -272,8 +362,9 @@ export function SubscribeForm(props: SubscribeFormProps) {
       lang={locale === "sr" ? "sr-Cyrl" : "en"}
       onSubmit={(e) =>
         f.submit(e, (fd) => ({
-          email: String(fd.get("email") ?? ""),
-          phone: String(fd.get("phone") ?? ""),
+          ...(single
+            ? splitContact(String(fd.get("contact") ?? ""))
+            : { email: String(fd.get("email") ?? ""), phone: String(fd.get("phone") ?? "") }),
           name: String(fd.get("name") ?? ""),
           source: props.source,
           page: props.page,
@@ -281,33 +372,97 @@ export function SubscribeForm(props: SubscribeFormProps) {
         }))
       }
     >
-      {done ? null : (
-        <>
-          {props.showName === false ? null : (
-            <Field
-              id={`${uid}-name`}
-              label={nameRequired ? s.nameLabel : `${s.nameLabel} (${s.optional})`}
-              error={f.errors.name}
-              cn={cn}
-            >
-              {(a) => (
-                <input {...a} name="name" type="text" autoComplete="name" required={nameRequired} maxLength={120} className={cn.input} />
-              )}
-            </Field>
-          )}
-          <Field id={`${uid}-email`} label={s.emailLabel} hint={s.contactHint} error={f.errors.email} cn={cn}>
-            {(a) => <input {...a} name="email" type="email" autoComplete="email" inputMode="email" maxLength={254} className={cn.input} />}
-          </Field>
-          <Field id={`${uid}-phone`} label={s.phoneLabel} error={f.errors.phone} cn={cn}>
-            {(a) => <input {...a} name="phone" type="tel" autoComplete="tel" inputMode="tel" maxLength={40} className={cn.input} />}
-          </Field>
+      {done && props.renderSuccess ? (
+        props.renderSuccess(f.phase.kind === "ok" ? f.phase.message : "")
+      ) : done ? null : (
+        <div className={cn.row}>
+          <div className={cn.fields}>
+            {props.showName === false ? null : (
+              <Field
+                id={`${uid}-name`}
+                label={nameRequired ? s.nameLabel : `${s.nameLabel} (${s.optional})`}
+                error={f.errors.name}
+                hideError={!showErr}
+                describedBy={statusId}
+                cn={cn}
+              >
+                {(a) => (
+                  <input
+                    {...a}
+                    name="name"
+                    type="text"
+                    autoComplete="name"
+                    required={nameRequired}
+                    maxLength={120}
+                    placeholder={s.namePlaceholder || undefined}
+                    className={cn.input}
+                  />
+                )}
+              </Field>
+            )}
+            {single ? (
+              <Field
+                id={`${uid}-contact`}
+                label={s.contactLabel}
+                error={f.errors.email}
+                hideError={!showErr}
+                describedBy={statusId}
+                cn={cn}
+              >
+                {(a) => (
+                  <input
+                    {...a}
+                    name="contact"
+                    type="text"
+                    autoComplete="email tel"
+                    inputMode="email"
+                    spellCheck={false}
+                    maxLength={254}
+                    placeholder={s.contactPlaceholder || undefined}
+                    className={cn.input}
+                  />
+                )}
+              </Field>
+            ) : (
+              <>
+                <Field
+                  id={`${uid}-email`}
+                  label={s.emailLabel}
+                  hint={s.contactHint}
+                  error={f.errors.email}
+                  hideError={!showErr}
+                  describedBy={statusId}
+                  cn={cn}
+                >
+                  {(a) => (
+                    <input {...a} name="email" type="email" autoComplete="email" inputMode="email" maxLength={254} className={cn.input} />
+                  )}
+                </Field>
+                <Field
+                  id={`${uid}-phone`}
+                  label={s.phoneLabel}
+                  error={f.errors.phone}
+                  hideError={!showErr}
+                  describedBy={statusId}
+                  cn={cn}
+                >
+                  {(a) => <input {...a} name="phone" type="tel" autoComplete="tel" inputMode="tel" maxLength={40} className={cn.input} />}
+                </Field>
+              </>
+            )}
+          </div>
           <Honeypot id={`${uid}-hp`} />
-          <button type="submit" className={cn.button} disabled={f.phase.kind === "sending"}>
+          <button
+            type="submit"
+            className={cn.button}
+            disabled={f.phase.kind === "sending"}
+            aria-busy={f.phase.kind === "sending" || undefined}
+          >
             {f.phase.kind === "sending" ? s.submitting : s.submit}
           </button>
-        </>
+        </div>
       )}
-      <Status phase={f.phase} cn={cn} />
+      <Status phase={f.phase} cn={cn} id={statusId} idle={s.idleNote} />
     </form>
   )
 }
